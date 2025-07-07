@@ -2,6 +2,7 @@ pipeline {
     agent {
         kubernetes {
             label 'maven-agent'
+            defaultContainer 'maven'
         }
     }
 
@@ -62,11 +63,13 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh """
-                    sed 's|__IMAGE__|${env.IMAGE_TAG}|g' k8s/Deployment.yaml | kubectl apply -f -
+                container('kubectl') {
+                    sh """
+                        sed 's|__IMAGE__|${env.IMAGE_TAG}|g' k8s/Deployment.yaml | kubectl apply -f -
 
-                    kubectl apply -f k8s/Service.yaml
-                """
+                        kubectl apply -f k8s/Service.yaml
+                    """
+                }
             }
         }
     }
