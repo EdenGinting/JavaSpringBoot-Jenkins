@@ -50,35 +50,41 @@ pipeline {
             steps {
                 container('maven') {
                     script {
-                        def version = sh(script: "mvn help:evaluate -Dexpression=project.version -q -DforceStdout", returnStdout: true).trim()
-                        env.VERSION = version
-                        env.IMAGE_TAG = "edenginting/springboot-jenkins:${version}"
-                        echo "Image tag will be: ${env.IMAGE_TAG}"
+                        echo "--- Debugging Maven Version Extraction ---"
+                        sh 'pwd' // Show current working directory
+                        sh 'ls -l' // List contents to confirm pom.xml presence
+
+                        // Attempt to read the version and capture status
+                        def result = sh(
+                            script: "mvn help:evaluate -Dexpression=project.version -q -DforceStdout",
+                            returnStdout: true,
+                            returnStatus: true // Crucial for error checking
+                        )
+
+                        if (result.status != 0) {
+                            error "Maven version evaluation failed. Exit code: ${result.status}. Check previous logs for Maven errors."
+                        }
+
+                        def version = result.stdout.trim()
+
+                        if (version.isEmpty()) {
+                            error "Maven project version is empty after evaluation. Raw output: '${result.stdout}'"
+                        } else {
+                            env.VERSION = version
+                            env.IMAGE_TAG = "edenginting/springboot-jenkins:${version}"
+                            echo "Successfully extracted Maven Project Version: ${env.VERSION}"
+                            echo "Calculated Docker Image Tag: ${env.IMAGE_TAG}"
+                        }
+                        echo "--- Debugging Complete ---"
                     }
                 }
             }
         }
 
-        stage('Build') {
+        stage('Build, Test, & Package') {
             steps {
                 container('maven') {
                     sh 'mvn clean compile'
-                }
-            }
-        }
-
-        stage('Test') {
-            steps {
-                container('maven') {
-                    sh 'mvn test'
-                }
-            }
-        }
-
-        stage('Package') {
-            steps {
-                container('maven') {
-                    sh 'mvn package'
                 }
             }
         }
@@ -92,11 +98,11 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
                         sh """
-                            echo 'Docker hub user: \$DOCKER_USER'
+                            echo "Docker hub user: ${DOCKER_USER}"
 
                             docker build -t ${env.IMAGE_TAG} .
 
-                            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                            echo "${DOCKER_USER}" | docker login -u "${DOCKER_USER}" --password-stdin
 
                             docker push ${env.IMAGE_TAG}
                         """
