@@ -59,7 +59,7 @@ pipeline {
         stage('Build, Test, & Package') {
             steps {
                 container('maven') {
-                    sh 'mvn clean compile'
+                    sh 'mvn clean install'
                 }
             }
         }
