@@ -1,43 +1,83 @@
 pipeline {
     agent {
-        node {
-            label 'docker-springboot-agent'
+        kubernetes {
+            label 'maven-agent'
         }
     }
 
+    environment {
+        VERSION = ''
+        IMAGE_TAG = ''
+    }
+
     stages {
+        stage('Get Version') {
+            steps {
+                script {
+                    def version = sh(script: "mvn help:evaluate -Dexpression=project.version -q -DforceStdout", returnStdout: true).trim()
+                    env.VERSION = version
+                    env.IMAGE_TAG = "edenginting/springboot-jenkins:${version}"
+                    echo "Image tag will be: ${env.IMAGE_TAG}"
+                }
+            }
+        }
+
         stage('Build') {
             steps {
-                echo 'Building...'
                 sh 'mvn clean compile'
-                echo 'Building successful'
             }
         }
 
         stage('Test') {
             steps {
-                echo 'Testing...'
                 sh 'mvn test'
-                echo 'Testing successful'
             }
         }
 
         stage('Package') {
             steps {
-                echo 'Packaging...'
                 sh 'mvn package'
-                echo 'Packaging successful'
+            }
+        }
+
+        stage('Docker Build & Push') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                        echo 'Docker hub user: \$DOCKER_USER'
+
+                        docker build -t ${env.IMAGE_TAG} .
+
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+
+                        docker push ${env.IMAGE_TAG}
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh """
+                    sed 's|__IMAGE__|${env.IMAGE_TAG}|g' k8s/Deployment.yaml | kubectl apply -f -
+
+                    kubectl apply -f k8s/Service.yaml
+                """
             }
         }
     }
 
     post {
         success {
-            echo 'Build succeed!'
+            echo "✅ Build & Deploy Successful!"
         }
 
         failure {
-            echo 'Build failed!'
+            echo "❌ Build or Deploy Failed!"
         }
     }
 }
