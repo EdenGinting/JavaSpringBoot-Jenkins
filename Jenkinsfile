@@ -57,7 +57,6 @@ pipeline {
                         // Attempt to read the version and capture status
                         def result = sh(
                             script: "mvn help:evaluate -Dexpression=project.version -q -DforceStdout",
-                            returnStdout: true,
                             returnStatus: true // Crucial for error checking
                         )
 
