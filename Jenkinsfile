@@ -1,9 +1,44 @@
 pipeline {
-    agent {
-        kubernetes {
-            label 'maven-agent'
-        }
+  agent {
+    kubernetes {
+      yaml """
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          labels:
+            jenkins: maven-agent
+        spec:
+          serviceAccountName: jenkins
+          containers:
+            - name: maven
+              image: maven:3.9.6-eclipse-temurin-17
+              command:
+                - cat
+              tty: true
+              volumeMounts:
+                - name: docker-sock
+                  mountPath: /var/run/docker.sock
+            - name: kubectl
+              image: bitnami/kubectl:latest
+              command:
+                - cat
+              tty: true
+            - name: docker
+              image: docker:24.0.7-cli
+              command:
+                - cat
+              tty: true
+              volumeMounts:
+                - name: docker-sock
+                  mountPath: /var/run/docker.sock
+          volumes:
+            - name: docker-sock
+              hostPath:
+                path: /var/run/docker.sock
+                type: Socket
+        """
     }
+  }
 
     environment {
         VERSION = ''
