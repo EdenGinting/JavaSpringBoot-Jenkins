@@ -77,7 +77,7 @@ pipeline {
 
                             docker build -t "${IMAGE_TAG}" .
 
-                            echo "${DOCKER_USER}" | docker login -u "${DOCKER_USER}" --password-stdin
+                            echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
 
                             docker push "${IMAGE_TAG}"
                         """
