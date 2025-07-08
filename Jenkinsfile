@@ -21,8 +21,8 @@ pipeline {
                   volumeMounts:
                     - name: docker-sock
                       mountPath: /var/run/docker.sock
-                - name: kubectl
-                  image: bitnami/kubectl:latest
+                - name: ubuntu
+                  image: ubuntu:22.04
                   command:
                     - cat
                   tty: true
@@ -48,9 +48,13 @@ pipeline {
             steps {
                 container('maven') {
                     script {
+                        echo "--- Set Image Tag ---"
+
                         VERSION = sh script: 'mvn help:evaluate -Dexpression=project.version -q -DforceStdout', returnStdout: true
+
                         IMAGE_TAG = "edenginting/springboot-jenkins:${VERSION}"
-                        echo "App image: ${IMAGE_TAG}"
+
+                        echo "--- Image Tag Has Been Set: ${IMAGE_TAG} ---"
                     }
                 }
             }
@@ -88,11 +92,23 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                container('kubectl') {
+                container('ubuntu') {
                     sh """
+                        apt-get update && apt-get install -y curl ca-certificates bash
+
+                        curl -LO https://dl.k8s.io/release/v1.32.0/bin/linux/amd64/kubectl
+
+                        install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+                        kubectl version
+
+                        echo "--- Applying Resources ---"
+
                         sed "s|__IMAGE__|${IMAGE_TAG}|g" k8s/Deployment.yaml | kubectl apply -f -
 
                         kubectl apply -f k8s/Service.yaml
+
+                        echo "--- Successfully Applying Resources ---"
                     """
                 }
             }
